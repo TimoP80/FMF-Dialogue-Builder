@@ -1,0 +1,6 @@
+{
+  "name": "FMF Dialogue Builder",
+  "description": "An app that generates FMF (Fan Made Fallout) dialogue structures based on prompts and allows exporting them into .fmf files.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
