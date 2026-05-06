@@ -222,9 +222,12 @@ export function parseFMFToGraph(fmfCode: string, brokenLinks: Set<string> = new 
   const skillCheckRegex = /define_skill_check\s+(\w+)\s*\{([^}]*)\}/g;
   let scMatch;
   while ((scMatch = skillCheckRegex.exec(fmfCode)) !== null) {
+      const fullMatch = scMatch[0];
       const scName = scMatch[1];
       const propsStr = scMatch[2];
       
+      const skillNumMatch = propsStr.match(/skill_num\s*=>\s*([\w_]+)/);
+      const difficultyMatch = propsStr.match(/difficulty_modifier\s*=>\s*(-?\d+)/);
       const onsuccMatch = propsStr.match(/onsuccess\s*=>\s*([\w_]+)/);
       const onfailMatch = propsStr.match(/onfailure\s*=>\s*([\w_]+)/);
       
@@ -256,7 +259,17 @@ export function parseFMFToGraph(fmfCode: string, brokenLinks: Set<string> = new 
 
       nodes.push({
           id: scName,
-          data: { label: `SKILL CHECK\n[${scName}]`, isPseudo: true },
+          data: { 
+              label: `SKILL CHECK\n[${scName}]`, 
+              isPseudo: true,
+              isSkillCheck: true,
+              scName,
+              skillNum: skillNumMatch ? skillNumMatch[1] : 'SKILL_SPEECH',
+              difficultyModifier: difficultyMatch ? parseInt(difficultyMatch[1]) : 0,
+              onsuccess: onsuccMatch ? onsuccMatch[1] : '',
+              onfailure: onfailMatch ? onfailMatch[1] : '',
+              chunk: fullMatch
+          },
           position: { x: 0, y: 0 },
           style: { 
               background: '#050a1a', 
@@ -367,6 +380,77 @@ function NodeEditorPanel({ node, onClose, onUpdate }: { node: any, onClose: () =
     );
 }
 
+function SkillCheckEditorPanel({ node, onClose, onUpdate }: { node: any, onClose: () => void, onUpdate: (scName: string, skillNum: string, difficultyModifier: string, onsuccess: string, onfailure: string) => void }) {
+    const [skillNum, setSkillNum] = useState(node.data.skillNum || '');
+    const [difficultyModifier, setDifficultyModifier] = useState(String(node.data.difficultyModifier || 0));
+    const [onsuccess, setOnsuccess] = useState(node.data.onsuccess || '');
+    const [onfailure, setOnfailure] = useState(node.data.onfailure || '');
+
+    useEffect(() => {
+        setSkillNum(node.data.skillNum || '');
+        setDifficultyModifier(String(node.data.difficultyModifier || 0));
+        setOnsuccess(node.data.onsuccess || '');
+        setOnfailure(node.data.onfailure || '');
+    }, [node.data.chunk]);
+
+    return (
+        <div className="absolute top-4 left-4 w-80 bg-black/95 border-2 border-blue-500 p-4 font-mono z-10 flex flex-col gap-4 text-blue-400 max-h-[calc(100%-2rem)] overflow-y-auto crt-effect shadow-[0_4px_10px_rgba(59,130,246,0.1)]">
+            <div className="flex justify-between items-center border-b-2 border-blue-500/50 pb-2">
+                <h3 className="font-bold tracking-widest uppercase">Edit Skill Check: [{node.data.scName}]</h3>
+                <button onClick={onClose} className="text-red-500 hover:text-red-400 font-bold px-2">&times;</button>
+            </div>
+            
+            <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-blue-600">skill_num</label>
+                <input 
+                    className="bg-[#050a1a] border border-blue-500/30 p-2 text-sm text-blue-300 focus:outline-none focus:border-blue-500"
+                    value={skillNum}
+                    onChange={(e) => {
+                        setSkillNum(e.target.value);
+                        onUpdate(node.data.scName, e.target.value, difficultyModifier, onsuccess, onfailure);
+                    }}
+                />
+            </div>
+            
+            <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-blue-600">difficulty_modifier</label>
+                <input 
+                    className="bg-[#050a1a] border border-blue-500/30 p-2 text-sm text-blue-300 focus:outline-none focus:border-blue-500"
+                    value={difficultyModifier}
+                    onChange={(e) => {
+                        setDifficultyModifier(e.target.value);
+                        onUpdate(node.data.scName, skillNum, e.target.value, onsuccess, onfailure);
+                    }}
+                />
+            </div>
+
+            <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-blue-600">onsuccess</label>
+                <input 
+                    className="bg-[#050a1a] border border-blue-500/30 p-2 text-sm text-blue-300 focus:outline-none focus:border-blue-500"
+                    value={onsuccess}
+                    onChange={(e) => {
+                        setOnsuccess(e.target.value);
+                        onUpdate(node.data.scName, skillNum, difficultyModifier, e.target.value, onfailure);
+                    }}
+                />
+            </div>
+
+            <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-blue-600">onfailure</label>
+                <input 
+                    className="bg-[#050a1a] border border-blue-500/30 p-2 text-sm text-blue-300 focus:outline-none focus:border-blue-500"
+                    value={onfailure}
+                    onChange={(e) => {
+                        setOnfailure(e.target.value);
+                        onUpdate(node.data.scName, skillNum, difficultyModifier, onsuccess, e.target.value);
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
+
 export default function DialogueGraph({ fmfCode, brokenLinks, unreachableNodes, warnings, onNodeEdit }: { fmfCode: string, brokenLinks?: Set<string>, unreachableNodes?: Set<string>, warnings?: string[], onNodeEdit?: (code: string) => void }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -402,7 +486,7 @@ export default function DialogueGraph({ fmfCode, brokenLinks, unreachableNodes, 
   }, [fmfCode, brokenLinks, unreachableNodes, warnings, setNodes, setEdges]);
 
   const onNodeClick = useCallback((_, node: Node) => {
-    if (node.id === 'START_CONDITIONS' || node.data?.isPseudo || node.id.startsWith('ERR_NULL_LINK:')) {
+    if (node.id === 'START_CONDITIONS' || (node.data?.isPseudo && !node.data?.isSkillCheck) || node.id.startsWith('ERR_NULL_LINK:')) {
         setSelectedNodeId(null);
         return;
     }
@@ -443,6 +527,21 @@ export default function DialogueGraph({ fmfCode, brokenLinks, unreachableNodes, 
       onNodeEdit(before + newChunk + after);
   };
 
+  const handleUpdateSkillCheckNode = (scName: string, skillNum: string, difficultyModifier: string, onsuccess: string, onfailure: string) => {
+      if (!onNodeEdit || !selectedNode) return;
+      const chunk = selectedNode.data.chunk;
+      const startIndex = fmfCode.indexOf(chunk);
+      if (startIndex === -1) return;
+      const endIndex = startIndex + chunk.length;
+
+      const before = fmfCode.substring(0, startIndex);
+      const after = fmfCode.substring(endIndex);
+
+      const newChunk = `define_skill_check ${scName} {\n    skill_num => ${skillNum}\n    difficulty_modifier => ${difficultyModifier}\n    onsuccess => ${onsuccess}\n    onfailure => ${onfailure}\n}`;
+
+      onNodeEdit(before + newChunk + after);
+  };
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
@@ -469,6 +568,13 @@ export default function DialogueGraph({ fmfCode, brokenLinks, unreachableNodes, 
               node={selectedNode}
               onClose={() => setSelectedNodeId(null)}
               onUpdate={handleUpdateNode}
+          />
+      )}
+      {selectedNode && selectedNode.data.isSkillCheck && (
+          <SkillCheckEditorPanel
+              node={selectedNode}
+              onClose={() => setSelectedNodeId(null)}
+              onUpdate={handleUpdateSkillCheckNode}
           />
       )}
     </div>

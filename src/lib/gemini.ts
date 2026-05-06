@@ -77,7 +77,7 @@ export const fmfSchema = {
     }
 };
 
-export async function generateDialogueJSON(prompt: string, maxNodes: number = 5, maxOptions: number = 4, aiModel: string = "gemini-2.5-flash", customGvars: string[] = []) {
+export async function generateDialogueJSON(prompt: string, theme: string = "", tone: string = "", keyCharacters: string = "", maxNodes: number = 5, maxOptions: number = 4, aiModel: string = "gemini-2.5-flash", customGvars: string[] = []) {
     const extraGvarsContext = customGvars.length > 0
         ? `\n13. Use these custom GVARs as needed for state management: ${customGvars.join(', ')}.`
         : '';
@@ -85,7 +85,12 @@ export async function generateDialogueJSON(prompt: string, maxNodes: number = 5,
     const response = await ai.models.generateContent({
         model: aiModel,
         contents: `You are an expert game designer writing dialogue for a classic RPG.
-Create a branching NPC dialogue tree based on this prompt: "${prompt}".
+Create a branching NPC dialogue tree based on this scenario/prompt: "${prompt}".
+
+Additional Parameters:
+- Theme: ${theme || 'Any'}
+- Tone: ${tone || 'Standard'}
+- Key Characters: ${keyCharacters || 'NPC'}
 
 CRITICAL CONSTRAINTS:
 1. Generate approximately ${maxNodes} unique dialogue nodes.

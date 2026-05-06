@@ -61,6 +61,9 @@ const FMFHighlighter = ({ code, brokenLinks }: { code: string, brokenLinks: Set<
 
 export default function App() {
   const [prompt, setPrompt] = useState('');
+  const [theme, setTheme] = useState('');
+  const [tone, setTone] = useState('');
+  const [keyCharacters, setKeyCharacters] = useState('');
   const [maxNodes, setMaxNodes] = useState<number>(5);
   const [maxOptions, setMaxOptions] = useState<number>(4);
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(60);
@@ -79,12 +82,12 @@ export default function App() {
     if (autoSaveInterval === 0 || (!prompt && !output)) return;
     
     const timer = setInterval(() => {
-      localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars }));
+      localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, theme, tone, keyCharacters, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars }));
       setLastSaved(new Date());
     }, autoSaveInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars]);
+  }, [prompt, theme, tone, keyCharacters, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars]);
 
   useEffect(() => {
     if (!output) {
@@ -237,7 +240,7 @@ export default function App() {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     try {
-      const data = await generateDialogueJSON(prompt, maxNodes, maxOptions, aiModel, customGvars);
+      const data = await generateDialogueJSON(prompt, theme, tone, keyCharacters, maxNodes, maxOptions, aiModel, customGvars);
       const fmfString = fmfToString(data);
       setOutput(fmfString);
     } catch (err) {
@@ -270,7 +273,7 @@ export default function App() {
 
   const handleSave = () => {
     if (!prompt && !output) return;
-    localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars }));
+    localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, theme, tone, keyCharacters, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars }));
     setLastSaved(new Date());
     alert('Project saved to browser storage.'); // Simple feedback
   };
@@ -281,6 +284,9 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed.prompt !== undefined) setPrompt(parsed.prompt);
+        if (parsed.theme !== undefined) setTheme(parsed.theme);
+        if (parsed.tone !== undefined) setTone(parsed.tone);
+        if (parsed.keyCharacters !== undefined) setKeyCharacters(parsed.keyCharacters);
         if (parsed.output !== undefined) setOutput(parsed.output);
         if (parsed.maxNodes !== undefined) setMaxNodes(parsed.maxNodes);
         if (parsed.maxOptions !== undefined) setMaxOptions(parsed.maxOptions);
@@ -334,11 +340,50 @@ export default function App() {
               </p>
             </div>
             
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-green-600 uppercase tracking-widest">
+                  Theme
+                </label>
+                <input
+                  type="text"
+                  value={theme}
+                  onChange={e => setTheme(e.target.value)}
+                  placeholder="e.g. Cyberpunk, Post-apocalyptic..."
+                  className="w-full bg-black/60 border-2 border-green-500/40 p-2.5 text-green-400 placeholder:text-green-800 focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 font-mono text-base"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-green-600 uppercase tracking-widest">
+                  Tone
+                </label>
+                <input
+                  type="text"
+                  value={tone}
+                  onChange={e => setTone(e.target.value)}
+                  placeholder="e.g. Dark, Humorous, Gritty..."
+                  className="w-full bg-black/60 border-2 border-green-500/40 p-2.5 text-green-400 placeholder:text-green-800 focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 font-mono text-base"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-green-600 uppercase tracking-widest">
+                  Key Characters
+                </label>
+                <input
+                  type="text"
+                  value={keyCharacters}
+                  onChange={e => setKeyCharacters(e.target.value)}
+                  placeholder="e.g. Scavenger Bob, Mayor..."
+                  className="w-full bg-black/60 border-2 border-green-500/40 p-2.5 text-green-400 placeholder:text-green-800 focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 font-mono text-base"
+                />
+              </div>
+            </div>
+            
             <textarea
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
               placeholder="e.g. A gritty scavenger sitting in a radioactive crater, refusing to part with his junk..."
-              className="w-full h-64 bg-black/60 border-2 border-green-500/40 p-4 text-green-400 placeholder:text-green-800 focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 resize-y transition-all font-mono text-lg text-glow"
+              className="w-full h-48 bg-black/60 border-2 border-green-500/40 p-4 text-green-400 placeholder:text-green-800 focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 resize-y transition-all font-mono text-lg text-glow mb-4"
             />
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-black/40 p-4 border-2 border-green-500/30 font-mono">
