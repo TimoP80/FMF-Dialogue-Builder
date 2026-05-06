@@ -218,6 +218,59 @@ export function parseFMFToGraph(fmfCode: string, brokenLinks: Set<string> = new 
       });
   }
 
+  // Parse skill checks
+  const skillCheckRegex = /define_skill_check\s+(\w+)\s*\{([^}]*)\}/g;
+  let scMatch;
+  while ((scMatch = skillCheckRegex.exec(fmfCode)) !== null) {
+      const scName = scMatch[1];
+      const propsStr = scMatch[2];
+      
+      const onsuccMatch = propsStr.match(/onsuccess\s*=>\s*([\w_]+)/);
+      const onfailMatch = propsStr.match(/onfailure\s*=>\s*([\w_]+)/);
+      
+      if (onsuccMatch) {
+          edges.push({
+              id: `e-${scName}-succ`,
+              source: scName,
+              target: onsuccMatch[1],
+              label: 'Success',
+              style: { stroke: 'rgba(59, 130, 246, 0.6)', strokeDasharray: '5,5' },
+              labelStyle: { fill: '#3b82f6', fontSize: 10, fontFamily: 'VT323, monospace' },
+              labelBgStyle: { fill: '#050a1a', stroke: 'rgba(59, 130, 246, 0.4)', rx: 0, ry: 0 },
+              markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(59, 130, 246, 0.6)' },
+          });
+      }
+      
+      if (onfailMatch) {
+          edges.push({
+              id: `e-${scName}-fail`,
+              source: scName,
+              target: onfailMatch[1],
+              label: 'Failure',
+              style: { stroke: 'rgba(239, 68, 68, 0.6)', strokeDasharray: '5,5' },
+              labelStyle: { fill: '#ef4444', fontSize: 10, fontFamily: 'VT323, monospace' },
+              labelBgStyle: { fill: '#1a0505', stroke: 'rgba(239, 68, 68, 0.4)', rx: 0, ry: 0 },
+              markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(239, 68, 68, 0.6)' },
+          });
+      }
+
+      nodes.push({
+          id: scName,
+          data: { label: `SKILL CHECK\n[${scName}]`, isPseudo: true },
+          position: { x: 0, y: 0 },
+          style: { 
+              background: '#050a1a', 
+              color: '#3b82f6', 
+              border: '2px solid #3b82f6',
+              borderRadius: '0px', 
+              padding: '12px', 
+              fontWeight: 'bold',
+              fontFamily: 'VT323, monospace',
+              width: nodeWidth
+          }
+      });
+  }
+
   // Remove missing nodes that standard options might link to mistakenly except for done/combat
   const existingNodeIds = new Set(nodes.map(n => n.id));
   const validEdges = edges.map(e => {
@@ -251,12 +304,12 @@ export function parseFMFToGraph(fmfCode: string, brokenLinks: Set<string> = new 
 }
 
 function NodeEditorPanel({ node, onClose, onUpdate }: { node: any, onClose: () => void, onUpdate: (nodeId: string, npcText: string, options: any[]) => void }) {
-    const [npcText, setNpcText] = useState(node.data.npcText);
-    const [options, setOptions] = useState([...node.data.options]);
+    const [npcText, setNpcText] = useState(node.data.npcText || '');
+    const [options, setOptions] = useState([...(node.data.options || [])]);
 
     useEffect(() => {
-        setNpcText(node.data.npcText);
-        setOptions([...node.data.options]);
+        setNpcText(node.data.npcText || '');
+        setOptions([...(node.data.options || [])]);
     }, [node.data.chunk]); // Update local state when the underlying chunk changes externally
 
     return (
@@ -411,7 +464,7 @@ export default function DialogueGraph({ fmfCode, brokenLinks, unreachableNodes, 
         </Panel>
       </ReactFlow>
 
-      {selectedNode && (
+      {selectedNode && !selectedNode.data.isPseudo && (
           <NodeEditorPanel 
               node={selectedNode}
               onClose={() => setSelectedNodeId(null)}

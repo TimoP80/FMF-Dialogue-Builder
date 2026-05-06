@@ -8,7 +8,7 @@ import DialogueGraph from './components/DialogueGraph';
 const FMFHighlighter = ({ code, brokenLinks }: { code: string, brokenLinks: Set<string> }) => {
   if (!code) return null;
   // A regex to match comments, linkto sequences explicitly, strings, numbers/booleans, and keywords
-  const regex = /(\/\*[\s\S]*?\*\/)|(linkto "([^"]+)")|("(?:\\"|[^"])*")|(\b(?:true|false|-?\d+)\b)|(\b(?:NPCName|Location|Description|Unknown_Desc|Known_Desc|Detailed_Desc|start_conditions|default_condition|cond|target_node|Node|is_wtg|NPCText|options|playertext|linkto|notes|int|Reaction|REACTION_NEUTRAL|REACTION_GOOD|REACTION_BAD)\b)/g;
+  const regex = /(\/\*[\s\S]*?\*\/)|(linkto "([^"]+)")|("(?:\\"|[^"])*")|(\b(?:true|false|-?\d+)\b)|(\b(?:NPCName|Location|Description|Unknown_Desc|Known_Desc|Detailed_Desc|start_conditions|default_condition|cond|target_node|Node|is_wtg|NPCText|options|playertext|linkto|notes|int|Reaction|REACTION_NEUTRAL|REACTION_GOOD|REACTION_BAD|custom_proc|associate_node|define_skill_check|skill_num|difficulty_modifier|onsuccess|onfailure)\b)/g;
 
   let lastIndex = 0;
   const elements = [];
@@ -96,6 +96,25 @@ export default function App() {
 
     const nodeNames = new Set<string>(['done', 'combat', 'combat_node', 'Node_FirstIntro']); 
     const nodesInfo = new Map<string, Set<string>>();
+
+    // Add skill checks to nodeNames so links to them are considered valid, and add their onsuccess/onfailure to edges
+    const skillCheckRegex = /define_skill_check\s+(\w+)\s*\{([^}]*)\}/g;
+    let scMatch;
+    while((scMatch = skillCheckRegex.exec(output)) !== null) {
+      const scName = scMatch[1];
+      nodeNames.add(scName);
+      
+      const targets = new Set<string>();
+      const propsStr = scMatch[2];
+      
+      const onsuccMatch = propsStr.match(/onsuccess\s*=>\s*([\w_]+)/);
+      if (onsuccMatch) targets.add(onsuccMatch[1]);
+      
+      const onfailMatch = propsStr.match(/onfailure\s*=>\s*([\w_]+)/);
+      if (onfailMatch) targets.add(onfailMatch[1]);
+
+      nodesInfo.set(scName, targets);
+    }
 
     const chunks = output.split('Node "');
     for (let i = 1; i < chunks.length; i++) {
@@ -225,11 +244,18 @@ export default function App() {
 
   const handleExport = () => {
     if (!output) return;
+    
+    let filename = "dialogue.fmf";
+    const npcMatch = output.match(/NPCName\s+"([^"]+)"/);
+    if (npcMatch && npcMatch[1]) {
+        filename = `${npcMatch[1].replace(/[^a-zA-Z0-9_\-]/g, '_')}.fmf`;
+    }
+    
     const blob = new Blob([output], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'dialogue.fmf';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

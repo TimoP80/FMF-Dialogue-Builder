@@ -48,6 +48,31 @@ export const fmfSchema = {
                     }
                 }
             }
+        },
+        custom_procedures: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.STRING, description: 'Name of the custom procedure' },
+                    associate_node_name: { type: Type.STRING, description: 'The name of the node this procedure is associated with' },
+                    code: { type: Type.STRING, description: 'The code of the custom procedure, e.g. "debug_msg(\\\"Test\\\");"' }
+                }
+            }
+        },
+        skill_checks: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.STRING, description: 'Name of the skill check, e.g. Skill_Check_000_Speech' },
+                    associate_node_name: { type: Type.STRING, description: 'The name of the node this skill check is associated with' },
+                    skill_num: { type: Type.INTEGER, description: 'The skill number/identifier (e.g. 15 for Speech)' },
+                    difficulty_modifier: { type: Type.INTEGER, description: 'The difficulty modifier (e.g. 12)' },
+                    onsuccess: { type: Type.STRING, description: 'Node name to go to on success' },
+                    onfailure: { type: Type.STRING, description: 'Node name to go to on failure' }
+                }
+            }
         }
     }
 };
@@ -55,16 +80,29 @@ export const fmfSchema = {
 export async function generateDialogueJSON(prompt: string, maxNodes: number = 5, maxOptions: number = 4) {
     const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
-        contents: `Create a branching NPC dialogue tree for a classic RPG game based on this prompt: "${prompt}". 
-        Make sure the tree has multiple nodes that interlink securely. The 'linkto' field in each option MUST exactly match the 'name' of an existing node. Valid alternative values are "done" to exit the conversation, or "combat" to initiate combat. Target around ${maxNodes} nodes and up to ${maxOptions} player options per node. Ensure no option links to a non-existent node.`,
+        contents: `You are an expert game designer writing dialogue for a classic RPG.
+Create a branching NPC dialogue tree based on this prompt: "${prompt}".
+
+CRITICAL CONSTRAINTS:
+1. Generate approximately ${maxNodes} unique dialogue nodes.
+2. Provide up to ${maxOptions} response options per node.
+3. Every single 'linkto' field MUST exactly match the 'name' field of one of the nodes you define, OR be "done" (to exit the conversation), OR be "combat" (to start a fight).
+4. NEVER use a 'linkto' value that does not exist in the 'nodes' array.
+5. The 'target_node' in 'start_conditions' must point to your initial dialogue node.
+6. Check that all generated nodes (except the starting one) are reachable from another node's option. Do not generate isolated nodes.
+7. Keep names simple (e.g. Node_Intro, Node_AskRumor) to avoid spelling mistakes in linkto fields.
+8. Feel free to generate 'custom_procedures' if special scripting logic is needed (like giving items or xp), associating them with specific node names.
+9. You can also generate 'skill_checks' if an option or node requires a skill check, associating them with specific node names.`,
         config: {
             responseMimeType: "application/json",
             responseSchema: fmfSchema,
-            temperature: 0.7
+            temperature: 0.4
         }
     });
 
-    return JSON.parse(response.text?.trim() || "{}");
+    const text = response.text?.trim() || "{}";
+    const cleanText = text.replace(/^```(json)?/, '').replace(/```$/, '').trim();
+    return JSON.parse(cleanText);
 }
 
 export function fmfToString(data: any): string {
@@ -98,8 +136,11 @@ export function fmfToString(data: any): string {
     out += `};\n\n`;
     
     out += `/* Regular nodes */\n\n`;
+    let nodeIndexMap: Record<string, number> = {};
     if (data.nodes && data.nodes.length > 0) {
-        for (const node of data.nodes) {
+        for (let idx = 0; idx < data.nodes.length; idx++) {
+            const node = data.nodes[idx];
+            nodeIndexMap[node.name] = idx;
             out += `Node "${node.name}"\n`;
             out += `notes "${node.notes || ''}"\n`;
             out += `is_wtg = ${node.is_wtg ? 'true' : 'false'}\n`;
@@ -116,6 +157,34 @@ export function fmfToString(data: any): string {
             }
             out += `              }\n`;
             out += `}\n`;
+        }
+    }
+    
+    if (data.custom_procedures && data.custom_procedures.length > 0) {
+        out += `\n/* Custom procedures */\n`;
+        for (const proc of data.custom_procedures) {
+            const nodeIdx = nodeIndexMap[proc.associate_node_name] ?? 0;
+            // Un-escape quotes and wrap in quotes appropriately
+            let procCode = proc.code || '';
+            if (!procCode.trim().startsWith('"')) {
+                // simple quote formatting
+                procCode = `"${procCode.replace(/"/g, '\\"')}"`;
+            }
+            out += `      custom_proc ${proc.name} associate_node ${nodeIdx} {\n`;
+            out += `      ${procCode}\n`;
+            out += `      }\n`;
+        }
+    }
+    
+    if (data.skill_checks && data.skill_checks.length > 0) {
+        for (const sc of data.skill_checks) {
+            out += `\n/* Skill checks for node ${sc.associate_node_name} */\n\n`;
+            out += `      define_skill_check ${sc.name} {\n`;
+            out += `      skill_num = ${sc.skill_num};\n`;
+            out += `      difficulty_modifier = ${sc.difficulty_modifier};\n`;
+            out += `      onsuccess => ${sc.onsuccess};\n`;
+            out += `      onfailure => ${sc.onfailure};\n`;
+            out += `      }\n`;
         }
     }
     
