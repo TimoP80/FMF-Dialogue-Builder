@@ -65,6 +65,8 @@ export default function App() {
   const [maxOptions, setMaxOptions] = useState<number>(4);
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(60);
   const [aiModel, setAiModel] = useState<string>('gemini-2.5-flash');
+  const [customGvars, setCustomGvars] = useState<string[]>([]);
+  const [newGvar, setNewGvar] = useState('');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [output, setOutput] = useState('');
@@ -77,12 +79,12 @@ export default function App() {
     if (autoSaveInterval === 0 || (!prompt && !output)) return;
     
     const timer = setInterval(() => {
-      localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel }));
+      localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars }));
       setLastSaved(new Date());
     }, autoSaveInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel]);
+  }, [prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars]);
 
   useEffect(() => {
     if (!output) {
@@ -235,7 +237,7 @@ export default function App() {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     try {
-      const data = await generateDialogueJSON(prompt, maxNodes, maxOptions, aiModel);
+      const data = await generateDialogueJSON(prompt, maxNodes, maxOptions, aiModel, customGvars);
       const fmfString = fmfToString(data);
       setOutput(fmfString);
     } catch (err) {
@@ -268,7 +270,7 @@ export default function App() {
 
   const handleSave = () => {
     if (!prompt && !output) return;
-    localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel }));
+    localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel, customGvars }));
     setLastSaved(new Date());
     alert('Project saved to browser storage.'); // Simple feedback
   };
@@ -284,12 +286,29 @@ export default function App() {
         if (parsed.maxOptions !== undefined) setMaxOptions(parsed.maxOptions);
         if (parsed.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.autoSaveInterval);
         if (parsed.aiModel !== undefined) setAiModel(parsed.aiModel);
+        if (parsed.customGvars !== undefined) setCustomGvars(parsed.customGvars);
       } catch (err) {
         console.error('Failed to load project from local storage.', err);
       }
     } else {
       alert('No saved project found.');
     }
+  };
+
+  const handleAddGvar = () => {
+    const trimmed = newGvar.trim().toUpperCase();
+    if (trimmed && !customGvars.includes(trimmed) && (!trimmed.startsWith('GVAR_') ? !customGvars.includes(`GVAR_${trimmed}`) : true)) {
+      if (!trimmed.startsWith('GVAR_')) {
+        setCustomGvars([...customGvars, `GVAR_${trimmed}`]);
+      } else {
+        setCustomGvars([...customGvars, trimmed]);
+      }
+      setNewGvar('');
+    }
+  };
+
+  const handleRemoveGvar = (gvar: string) => {
+    setCustomGvars(customGvars.filter(g => g !== gvar));
   };
 
   return (
@@ -380,6 +399,40 @@ export default function App() {
                   <option value="gemini-3.1-pro-preview">3.1-Pro (Best)</option>
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-2 bg-black/40 p-4 border-2 border-green-500/30 font-mono">
+              <label className="text-sm font-bold text-green-600 uppercase tracking-widest flex items-center gap-1.5">
+                <Settings className="w-4 h-4" /> Custom GVARs
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newGvar}
+                  onChange={e => setNewGvar(e.target.value)}
+                  placeholder="GVAR_NAME"
+                  className="flex-1 bg-black border-2 border-green-500/40 p-2.5 text-green-400 focus:outline-none focus:border-green-400 font-mono text-base"
+                  onKeyDown={e => { if(e.key === 'Enter') handleAddGvar() }}
+                />
+                <button 
+                  onClick={handleAddGvar} 
+                  className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-2 border-green-500/50 px-4 font-bold uppercase tracking-widest"
+                >
+                  Add
+                </button>
+              </div>
+              {customGvars.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {customGvars.map(gvar => (
+                    <span key={gvar} className="bg-black/80 text-green-300 px-2 py-1 flex items-center gap-2 border border-green-500/50 text-sm">
+                      {gvar}
+                      <button onClick={() => handleRemoveGvar(gvar)} className="text-red-400 hover:text-red-300 hover:bg-red-400/20 rounded-full px-1.5 leading-none transition-colors">
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 pt-2">

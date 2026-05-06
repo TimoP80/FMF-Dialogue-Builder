@@ -77,7 +77,11 @@ export const fmfSchema = {
     }
 };
 
-export async function generateDialogueJSON(prompt: string, maxNodes: number = 5, maxOptions: number = 4, aiModel: string = "gemini-2.5-flash") {
+export async function generateDialogueJSON(prompt: string, maxNodes: number = 5, maxOptions: number = 4, aiModel: string = "gemini-2.5-flash", customGvars: string[] = []) {
+    const extraGvarsContext = customGvars.length > 0
+        ? `\n13. Use these custom GVARs as needed for state management: ${customGvars.join(', ')}.`
+        : '';
+        
     const response = await ai.models.generateContent({
         model: aiModel,
         contents: `You are an expert game designer writing dialogue for a classic RPG.
@@ -95,7 +99,7 @@ CRITICAL CONSTRAINTS:
 9. You can also generate 'skill_checks' if an option or node requires a skill check, associating them with specific node names.
 10. You can use standard Fallout/FanMadeFallout item PIDs like PID_STIMPAK, PID_10MM_PISTOL, PID_JET, PID_BOTTLE_CAPS, PID_KNIFE, etc. in custom_procedures if items are given or taken.
 11. You can use command macros from command.h in custom_procedures: dude_is_male, dude_cur_hits, self_item, dude_caps, dude_has_car, floater, skill_success, etc.
-12. You can manipulate global variables in custom_procedures using global_var(GVAR_NAME) and set_global_var(GVAR_NAME, value).`,
+12. You can manipulate global variables in custom_procedures using global_var(GVAR_NAME) and set_global_var(GVAR_NAME, value).${extraGvarsContext}`,
         config: {
             responseMimeType: "application/json",
             responseSchema: fmfSchema,
