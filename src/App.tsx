@@ -5,10 +5,13 @@ import { generateDialogueJSON, fmfToString } from './lib/gemini';
 import { motion, AnimatePresence } from 'motion/react';
 import DialogueGraph from './components/DialogueGraph';
 
+import { COMMAND_MACROS } from './lib/commands';
+
 const FMFHighlighter = ({ code, brokenLinks }: { code: string, brokenLinks: Set<string> }) => {
   if (!code) return null;
   // A regex to match comments, linkto sequences explicitly, strings, numbers/booleans, and keywords
-  const regex = /(\/\*[\s\S]*?\*\/)|(linkto "([^"]+)")|("(?:\\"|[^"])*")|(\b(?:true|false|-?\d+)\b)|(\b(?:NPCName|Location|Description|Unknown_Desc|Known_Desc|Detailed_Desc|start_conditions|default_condition|cond|target_node|Node|is_wtg|NPCText|options|playertext|linkto|notes|int|Reaction|REACTION_NEUTRAL|REACTION_GOOD|REACTION_BAD|custom_proc|associate_node|define_skill_check|skill_num|difficulty_modifier|onsuccess|onfailure)\b)/g;
+  const keywords = ['NPCName', 'Location', 'Description', 'Unknown_Desc', 'Known_Desc', 'Detailed_Desc', 'start_conditions', 'default_condition', 'cond', 'target_node', 'Node', 'is_wtg', 'NPCText', 'options', 'playertext', 'linkto', 'notes', 'int', 'Reaction', 'REACTION_NEUTRAL', 'REACTION_GOOD', 'REACTION_BAD', 'custom_proc', 'associate_node', 'define_skill_check', 'skill_num', 'difficulty_modifier', 'onsuccess', 'onfailure', ...COMMAND_MACROS].join('|');
+  const regex = new RegExp(`(/\\*[\\s\\S]*?\\*/)|(linkto "([^"]+)")|("(?:\\\\"|[^"])*")|(\\b(?:true|false|-?\\d+)\\b)|(\\b(?:${keywords}|PID_[A-Z0-9_]+|GVAR_[A-Z0-9_]+)\\b)`, 'g');
 
   let lastIndex = 0;
   const elements = [];
@@ -61,6 +64,7 @@ export default function App() {
   const [maxNodes, setMaxNodes] = useState<number>(5);
   const [maxOptions, setMaxOptions] = useState<number>(4);
   const [autoSaveInterval, setAutoSaveInterval] = useState<number>(60);
+  const [aiModel, setAiModel] = useState<string>('gemini-2.5-flash');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [output, setOutput] = useState('');
@@ -73,12 +77,12 @@ export default function App() {
     if (autoSaveInterval === 0 || (!prompt && !output)) return;
     
     const timer = setInterval(() => {
-      localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval }));
+      localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel }));
       setLastSaved(new Date());
     }, autoSaveInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [prompt, output, maxNodes, maxOptions, autoSaveInterval]);
+  }, [prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel]);
 
   useEffect(() => {
     if (!output) {
@@ -231,7 +235,7 @@ export default function App() {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     try {
-      const data = await generateDialogueJSON(prompt, maxNodes, maxOptions);
+      const data = await generateDialogueJSON(prompt, maxNodes, maxOptions, aiModel);
       const fmfString = fmfToString(data);
       setOutput(fmfString);
     } catch (err) {
@@ -264,7 +268,7 @@ export default function App() {
 
   const handleSave = () => {
     if (!prompt && !output) return;
-    localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval }));
+    localStorage.setItem('fmf_dialogue_save', JSON.stringify({ prompt, output, maxNodes, maxOptions, autoSaveInterval, aiModel }));
     setLastSaved(new Date());
     alert('Project saved to browser storage.'); // Simple feedback
   };
@@ -279,6 +283,7 @@ export default function App() {
         if (parsed.maxNodes !== undefined) setMaxNodes(parsed.maxNodes);
         if (parsed.maxOptions !== undefined) setMaxOptions(parsed.maxOptions);
         if (parsed.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.autoSaveInterval);
+        if (parsed.aiModel !== undefined) setAiModel(parsed.aiModel);
       } catch (err) {
         console.error('Failed to load project from local storage.', err);
       }
@@ -317,8 +322,8 @@ export default function App() {
               className="w-full h-64 bg-black/60 border-2 border-green-500/40 p-4 text-green-400 placeholder:text-green-800 focus:outline-none focus:border-green-400 focus:ring-1 focus:ring-green-400 resize-y transition-all font-mono text-lg text-glow"
             />
 
-            <div className="flex flex-col sm:flex-row gap-4 bg-black/40 p-4 border-2 border-green-500/30 font-mono">
-              <div className="flex-1 space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-black/40 p-4 border-2 border-green-500/30 font-mono">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
                 <label className="text-sm font-bold text-green-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Settings className="w-4 h-4" /> Max Nodes
                 </label>
@@ -331,7 +336,7 @@ export default function App() {
                   className="w-full bg-black border-2 border-green-500/40 p-2.5 text-green-400 focus:outline-none focus:border-green-400 font-mono text-lg text-center"
                 />
               </div>
-              <div className="flex-1 space-y-2">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
                 <label className="text-sm font-bold text-green-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Settings className="w-4 h-4" /> Max Options
                 </label>
@@ -344,7 +349,7 @@ export default function App() {
                   className="w-full bg-black border-2 border-green-500/40 p-2.5 text-green-400 focus:outline-none focus:border-green-400 font-mono text-lg text-center"
                 />
               </div>
-              <div className="flex-1 space-y-2">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
                 <label className="text-sm font-bold text-green-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Settings className="w-4 h-4" /> Auto-Save
                 </label>
@@ -354,10 +359,25 @@ export default function App() {
                   className="w-full bg-black border-2 border-green-500/40 p-3 text-green-400 focus:outline-none focus:border-green-400 font-mono text-base text-center appearance-none cursor-pointer"
                 >
                   <option value={0}>Off</option>
-                  <option value={15}>15 seconds</option>
-                  <option value={30}>30 seconds</option>
-                  <option value={60}>1 minute</option>
-                  <option value={300}>5 minutes</option>
+                  <option value={15}>15 sec</option>
+                  <option value={30}>30 sec</option>
+                  <option value={60}>1 min</option>
+                  <option value={300}>5 min</option>
+                </select>
+              </div>
+              <div className="space-y-2 col-span-2 sm:col-span-1">
+                <label className="text-sm font-bold text-green-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <Settings className="w-4 h-4" /> AI Model
+                </label>
+                <select
+                  value={aiModel}
+                  onChange={e => setAiModel(e.target.value)}
+                  className="w-full bg-black border-2 border-green-500/40 p-3 text-green-400 focus:outline-none focus:border-green-400 font-mono text-base text-center appearance-none cursor-pointer"
+                  title="Choose between fast/free model or advanced model"
+                >
+                  <option value="gemini-2.5-flash">2.5-Flash (Free)</option>
+                  <option value="gemini-2.5-pro">2.5-Pro (Better)</option>
+                  <option value="gemini-3.1-pro-preview">3.1-Pro (Best)</option>
                 </select>
               </div>
             </div>

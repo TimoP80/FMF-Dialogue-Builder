@@ -77,9 +77,9 @@ export const fmfSchema = {
     }
 };
 
-export async function generateDialogueJSON(prompt: string, maxNodes: number = 5, maxOptions: number = 4) {
+export async function generateDialogueJSON(prompt: string, maxNodes: number = 5, maxOptions: number = 4, aiModel: string = "gemini-2.5-flash") {
     const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: aiModel,
         contents: `You are an expert game designer writing dialogue for a classic RPG.
 Create a branching NPC dialogue tree based on this prompt: "${prompt}".
 
@@ -92,7 +92,10 @@ CRITICAL CONSTRAINTS:
 6. Check that all generated nodes (except the starting one) are reachable from another node's option. Do not generate isolated nodes.
 7. Keep names simple (e.g. Node_Intro, Node_AskRumor) to avoid spelling mistakes in linkto fields.
 8. Feel free to generate 'custom_procedures' if special scripting logic is needed (like giving items or xp), associating them with specific node names.
-9. You can also generate 'skill_checks' if an option or node requires a skill check, associating them with specific node names.`,
+9. You can also generate 'skill_checks' if an option or node requires a skill check, associating them with specific node names.
+10. You can use standard Fallout/FanMadeFallout item PIDs like PID_STIMPAK, PID_10MM_PISTOL, PID_JET, PID_BOTTLE_CAPS, PID_KNIFE, etc. in custom_procedures if items are given or taken.
+11. You can use command macros from command.h in custom_procedures: dude_is_male, dude_cur_hits, self_item, dude_caps, dude_has_car, floater, skill_success, etc.
+12. You can manipulate global variables in custom_procedures using global_var(GVAR_NAME) and set_global_var(GVAR_NAME, value).`,
         config: {
             responseMimeType: "application/json",
             responseSchema: fmfSchema,
